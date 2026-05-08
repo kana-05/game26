@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Paper Sky</title>
+
+<style>
+
+*{
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+}
+
+body{
+  overflow:hidden;
+  background:#f9f3d9;
+  font-family:
+  "Hiragino Maru Gothic ProN",
+  sans-serif;
+}
+
+canvas{
+  display:block;
+  touch-action:none;
+}
+
+/* ---------- タイトル ---------- */
+
+#titleScreen{
+  position:absolute;
+  width:100%;
+  height:100%;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:center;
+
+  background:
+  linear-gradient(
+    to bottom,
+    #bfe9ff,
+    #f9f3d9
+  );
+
+  z-index:10;
+}
+
+#title{
+  font-size:64px;
+  color:#5f6f81;
+  margin-bottom:20px;
+  transform:rotate(-2deg);
+}
+
+#subtitle{
+  color:#6d7c88;
+  margin-bottom:50px;
+  font-size:20px;
+}
+
+#startButton{
+
+  background:#fff7c9;
+
+  border:3px solid #8fd3ff;
+
+  border-radius:40px;
+
+  padding:16px 40px;
+
+  font-size:24px;
+
+  color:#5f6f81;
+
+  cursor:pointer;
+}
+
+/* ---------- UI ---------- */
+
+#ui{
+  position:absolute;
+  top:15px;
+  left:20px;
+
+  color:#5f6f81;
+
+  font-size:28px;
+
+  z-index:5;
+}
+
+/* ---------- GameOver ---------- */
+
+#gameOver{
+  position:absolute;
+  top:50%;
+  left:50%;
+
+  transform:
+  translate(-50%,-50%);
+
+  text-align:center;
+
+  display:none;
+
+  z-index:20;
+}
+
+#gameOver h1{
+  color:#5f6f81;
+  font-size:52px;
+}
+
+#gameOver p{
+  color:#6d7c88;
+  font-size:24px;
+  margin:20px 0;
+}
+
+#retryButton{
+
+  background:#fff7c9;
+
+  border:3px solid #8fd3ff;
+
+  border-radius:40px;
+
+  padding:14px 32px;
+
+  font-size:22px;
+
+  color:#5f6f81;
+
+  cursor:pointer;
+}
+
+</style>
+</head>
+
+<body>
+
+<!-- タイトル -->
+
+<div id="titleScreen">
+
+  <div id="title">
+    Paper Sky
+  </div>
+
+  <div id="subtitle">
+    紙飛行機をよけながら
+    飴を集めよう
+  </div>
+
+  <button id="startButton">
+    START
+  </button>
+
+</div>
+
+<!-- UI -->
+
+<div id="ui">
+  Score :
+  <span id="score">0</span>
+</div>
+
+<!-- GameOver -->
+
+<div id="gameOver">
+
+  <h1>Game Over</h1>
+
+  <p id="finalScore"></p>
+
+  <button id="retryButton">
+    もう一回
+  </button>
+
+</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<script>
+
+const canvas =
+document.getElementById("gameCanvas");
+
+const ctx =
+canvas.getContext("2d");
+
+let width =
+window.innerWidth;
+
+let height =
+window.innerHeight;
+
+canvas.width = width;
+canvas.height = height;
+
+/* ---------- プレイヤー ---------- */
+
+const player = {
+
+  x: width / 2,
+
+  y: height - 120,
+
+  radius: 28
+
+};
+
+let targetX = player.x;
+
+/* ---------- ゲーム ---------- */
+
+let planes = [];
+let candies = [];
+
+let score = 0;
+
+let speed = 4.2;
+
+let gameRunning = false;
+
+/* ---------- リサイズ ---------- */
+
+function resize(){
+
+  width =
+  window.innerWidth;
+
+  height =
+  window.innerHeight;
+
+  canvas.width = width;
+  canvas.height = height;
+
+  player.y = height - 120;
+}
+
+window.addEventListener(
+  "resize",
+  resize
+);
+
+/* ---------- 背景 ---------- */
+
+function drawBackground(){
+
+  const bg =
+  ctx.createLinearGradient(
+    0,
+    0,
+    0,
+    height
+  );
+
+  bg.addColorStop(0,"#bfe9ff");
+  bg.addColorStop(1,"#f9f3d9");
+
+  ctx.fillStyle = bg;
+
+  ctx.fillRect(
+    0,
+    0,
+    width,
+    height
+  );
+
+  /* ふわふわ */
+
+  for(let i=0;i<20;i++){
+
+    ctx.beginPath();
+
+    ctx.arc(
+      (i*200 + Date.now()*0.02)
+      % width,
+
+      (i*100)
+      % height,
+
+      35,
+
+      0,
+
+      Math.PI*2
+    );
+
+    ctx.fillStyle =
+    "rgba(255,255,255,0.15)";
+
+    ctx.fill();
+  }
+}
+
+/* ---------- プレイヤー ---------- */
+
+function drawPlayer(){
+
+  ctx.beginPath();
+
+  ctx.fillStyle = "#fff6c7";
+
+  ctx.arc(
+    player.x,
+    player.y,
+    player.radius,
+    0,
+    Math.PI*2
+  );
+
+  ctx.fill();
+
+  ctx.lineWidth = 4;
+
+  ctx.strokeStyle =
+  "#8fd3ff";
+
+  ctx.stroke();
+
+  /* 顔 */
+
+  ctx.fillStyle =
+  "#5f6f81";
+
+  ctx.beginPath();
+
+  ctx.arc(
+    player.x - 8,
+    player.y - 5,
+    3,
+    0,
+    Math.PI*2
+  );
+
+  ctx.arc(
+    player.x + 8,
+    player.y - 5,
+    3,
+    0,
+    Math.PI*2
+  );
+
+  ctx.fill();
+
+  ctx.beginPath();
+
+  ctx.arc(
+    player.x,
+    player.y + 5,
+    8,
+    0,
+    Math.PI
+  );
+
+  ctx.stroke();
+}
+
+/* ---------- 紙飛行機 ---------- */
+
+function drawPlane(plane){
+
+  ctx.save();
+
+  ctx.translate(
+    plane.x,
+    plane.y
+  );
+
+  ctx.rotate(
+    plane.rotation
+  );
+
+  /* 影 */
+
+  ctx.beginPath();
+
+  ctx.moveTo(3,-32);
+  ctx.lineTo(30,32);
+  ctx.lineTo(3,16);
+  ctx.lineTo(-30,32);
+
+  ctx.closePath();
+
+  ctx.fillStyle =
+  "rgba(0,0,0,0.10)";
+
+  ctx.fill();
+
+  /* 本体 */
+
+  ctx.beginPath();
+
+  ctx.moveTo(0,-35);
+  ctx.lineTo(32,35);
+  ctx.lineTo(0,18);
+  ctx.lineTo(-32,35);
+
+  ctx.closePath();
+
+  /* 濃い青 */
+
+  const grad =
+  ctx.createLinearGradient(
+    -40,
+    -40,
+    40,
+    40
+  );
+
+  grad.addColorStop(
+    0,
+    "#4da3ff"
+  );
+
+  grad.addColorStop(
+    1,
+    "#005bbb"
+  );
+
+  ctx.fillStyle = grad;
+
+  ctx.fill();
+
+  ctx.lineWidth = 3;
+
+  ctx.strokeStyle =
+  "#dff4ff";
+
+  ctx.stroke();
+
+  /* 真ん中線 */
+
+  ctx.beginPath();
+
+  ctx.moveTo(0,-30);
+  ctx.lineTo(0,18);
+
+  ctx.strokeStyle =
+  "rgba(255,255,255,0.7)";
+
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/* ---------- 飴 ---------- */
+
+function drawCandy(candy){
+
+  ctx.save();
+
+  ctx.translate(
+    candy.x,
+    candy.y
+  );
+
+  /* 左 */
+
+  ctx.fillStyle =
+  "#ff9ecf";
+
+  ctx.beginPath();
+
+  ctx.moveTo(-18,0);
+  ctx.lineTo(-30,-10);
+  ctx.lineTo(-30,10);
+
+  ctx.closePath();
+
+  ctx.fill();
+
+  /* 右 */
+
+  ctx.beginPath();
+
+  ctx.moveTo(18,0);
+  ctx.lineTo(30,-10);
+  ctx.lineTo(30,10);
+
+  ctx.closePath();
+
+  ctx.fill();
+
+  /* 真ん中 */
+
+  ctx.beginPath();
+
+  ctx.fillStyle =
+  "#ff74b8";
+
+  ctx.arc(
+    0,
+    0,
+    18,
+    0,
+    Math.PI*2
+  );
+
+  ctx.fill();
+
+  /* キラ */
+
+  ctx.beginPath();
+
+  ctx.fillStyle =
+  "rgba(255,255,255,0.8)";
+
+  ctx.arc(
+    -5,
+    -5,
+    4,
+    0,
+    Math.PI*2
+  );
+
+  ctx.fill();
+
+  ctx.restore();
+}
+
+/* ---------- 飛行機生成 ---------- */
+
+function spawnPlane(){
+
+  let randomX;
+
+  /* 真ん中に来やすく */
+
+  if(Math.random() < 0.7){
+
+    randomX =
+
+    width/2 +
+
+    (Math.random()-0.5)
+    * width * 0.5;
+
+  }else{
+
+    randomX =
+    Math.random() * width;
+  }
+
+  planes.push({
+
+    x: randomX,
+
+    y: -60,
+
+    rotation:
+    Math.random() * 0.4 - 0.2
+
+  });
+}
+
+/* ---------- 飴生成 ---------- */
+
+function spawnCandy(){
+
+  candies.push({
+
+    x:
+    Math.random() * width,
+
+    y:-50
+
+  });
+}
+
+/* ---------- プレイヤー更新 ---------- */
+
+function updatePlayer(){
+
+  /* なめらか移動 */
+
+  player.x +=
+  (targetX - player.x)
+  * 0.18;
+
+  /* 画面外防止 */
+
+  if(player.x < player.radius){
+
+    player.x =
+    player.radius;
+  }
+
+  if(
+    player.x >
+    width - player.radius
+  ){
+
+    player.x =
+    width - player.radius;
+  }
+}
+
+/* ---------- 飛行機更新 ---------- */
+
+function updatePlanes(){
+
+  for(
+    let i=planes.length-1;
+    i>=0;
+    i--
+  ){
+
+    const p = planes[i];
+
+    p.y += speed;
+
+    drawPlane(p);
+
+    const dx =
+    p.x - player.x;
+
+    const dy =
+    p.y - player.y;
+
+    const distance =
+    Math.sqrt(
+      dx*dx + dy*dy
+    );
+
+    /* 当たり */
+
+    if(
+      distance <
+      player.radius + 28
+    ){
+
+      endGame();
+    }
+
+    /* 画面外 */
+
+    if(p.y > height + 80){
+
+      planes.splice(i,1);
+
+      score++;
+
+      document
+      .getElementById("score")
+      .textContent = score;
+
+      /* 加速 */
+
+      if(score % 4 === 0){
+
+        speed += 0.4;
+      }
+    }
+  }
+}
+
+/* ---------- 飴更新 ---------- */
+
+function updateCandies(){
+
+  for(
+    let i=candies.length-1;
+    i>=0;
+    i--
+  ){
+
+    const c =
+    candies[i];
+
+    c.y += speed * 0.9;
+
+    drawCandy(c);
+
+    const dx =
+    c.x - player.x;
+
+    const dy =
+    c.y - player.y;
+
+    const distance =
+    Math.sqrt(
+      dx*dx + dy*dy
+    );
+
+    /* 取る */
+
+    if(
+      distance <
+      player.radius + 20
+    ){
+
+      candies.splice(i,1);
+
+      score += 5;
+
+      document
+      .getElementById("score")
+      .textContent = score;
+    }
+
+    if(c.y > height + 60){
+
+      candies.splice(i,1);
+    }
+  }
+}
+
+/* ---------- ループ ---------- */
+
+function gameLoop(){
+
+  if(!gameRunning)
+  return;
+
+  drawBackground();
+
+  updatePlayer();
+
+  drawPlayer();
+
+  updatePlanes();
+
+  updateCandies();
+
+  requestAnimationFrame(
+    gameLoop
+  );
+}
+
+/* ---------- 開始 ---------- */
+
+function startGame(){
+
+  document
+  .getElementById(
+    "titleScreen"
+  )
+  .style.display = "none";
+
+  gameRunning = true;
+
+  gameLoop();
+}
+
+document
+.getElementById(
+  "startButton"
+)
+.addEventListener(
+  "click",
+  startGame
+);
+
+/* ---------- 終了 ---------- */
+
+function endGame(){
+
+  gameRunning = false;
+
+  document
+  .getElementById(
+    "gameOver"
+  )
+  .style.display = "block";
+
+  document
+  .getElementById(
+    "finalScore"
+  )
+  .textContent =
+  "Score : " + score;
+}
+
+/* ---------- リスタート ---------- */
+
+function restartGame(){
+
+  planes = [];
+  candies = [];
+
+  score = 0;
+
+  speed = 4.2;
+
+  document
+  .getElementById(
+    "score"
+  )
+  .textContent = 0;
+
+  document
+  .getElementById(
+    "gameOver"
+  )
+  .style.display = "none";
+
+  gameRunning = true;
+
+  gameLoop();
+}
+
+document
+.getElementById(
+  "retryButton"
+)
+.addEventListener(
+  "click",
+  restartGame
+);
+
+/* ---------- スマホ操作 ---------- */
+
+canvas.addEventListener(
+  "touchmove",
+  (e)=>{
+
+    const touch =
+    e.touches[0];
+
+    targetX =
+    touch.clientX;
+
+    e.preventDefault();
+
+  },
+  { passive:false }
+);
+
+/* ---------- PC操作 ---------- */
+
+canvas.addEventListener(
+  "mousemove",
+  (e)=>{
+
+    targetX =
+    e.clientX;
+  }
+);
+
+/* ---------- 出現 ---------- */
+
+setInterval(()=>{
+
+  if(gameRunning){
+
+    spawnPlane();
+
+    /* たまに飴 */
+
+    if(Math.random() < 0.25){
+
+      spawnCandy();
+    }
+  }
+
+},650);
+
+drawBackground();
+
+</script>
+
+</body>
+</html>
